@@ -15,6 +15,7 @@ len_train = train.shape[0]
 # TODO 特征工程
 # 提取尊称
 titanic['Title'] = titanic.Name.apply(lambda name: name.split(',')[1].split('.')[0].strip())
+
 # 把少数的尊称合一
 other_list = titanic.Title.value_counts().index[4:].tolist()
 mapping = {}
@@ -90,7 +91,7 @@ X_test = test.loc[:, 'Pclass':]
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier, AdaBoostClassifier, GradientBoostingClassifier
 from sklearn.model_selection import GridSearchCV
 from xgboost import XGBClassifier
@@ -142,10 +143,48 @@ model = VotingClassifier(
         ('rb_clf', AdaBoostClassifier())
     ], voting='soft')  # , voting='hard')
 scores = cross_val_score(model, X_train, y_train, cv=5, scoring='roc_auc')
-print('Voting :',scores.mean(), "--", scores)
+print('Voting :', scores.mean(), "--", scores)
 
-# 4. Stacking
-# 0.8713813265814722  [0.87747036 0.83886693 0.86590909 0.87085561 0.90380464]
+# # 4. Stacking
+# # 0.8713813265814722  [0.87747036 0.83886693 0.86590909 0.87085561 0.90380464]
+# clfs = [
+#     AdaBoostClassifier(),
+#     SVC(probability=True),
+#     AdaBoostClassifier(),
+#     LogisticRegression(C=0.1, max_iter=100),
+#     XGBClassifier(max_depth=6, n_estimators=100, num_round=5),
+#     RandomForestClassifier(n_estimators=100, max_depth=6, oob_score=True),
+#     GradientBoostingClassifier(learning_rate=0.3, max_depth=6, n_estimators=100)
+# ]
+#
+# kf = KFold(n_splits=5, shuffle=True, random_state=1)
+#
+# # 创建零矩阵
+# dataset_stacking_train = np.zeros((X_train.shape[0], len(clfs)))
+# # dataset_stacking_label  = np.zeros((trainLabel.shape[0], len(clfs)))
+#
+# for j, clf in enumerate(clfs):
+#     '''依次训练各个单模型'''
+#     for i, (train, test) in enumerate(kf.split(y_train)):
+#         '''使用第i个部分作为预测，剩余的部分来训练模型，获得其预测的输出作为第i部分的新特征。'''
+#         # print("Fold", i)
+#         X_train, y_train, X_test, y_test = X_train[train], y_train[train], X_train[test], y_train[test]
+#         clf.fit(X_train, y_train)
+#         y_submission = clf.predict_proba(X_test)[:, 1]
+#
+#         # j 表示每一次的算法，而 test是交叉验证得到的每一行（也就是每一个算法把测试机和都预测了一遍）
+#         dataset_stacking_train[test, j] = y_submission
+#
+# # 用建立第二层模型
+# model = LogisticRegression(C=0.1, max_iter=100)
+# model.fit(dataset_stacking_train, y_train)
+#
+# scores = cross_val_score(model, dataset_stacking_train, y_train, cv=5, scoring='roc_auc')
+# print('Stacking :',scores.mean(), "--", scores)
+
+
+# 5. Blending
+# 0.8838950287185581 [0.87584416 0.91064935 0.89714286 0.85294118 0.8828976 ]
 clfs = [
     AdaBoostClassifier(),
     SVC(probability=True),
@@ -155,28 +194,23 @@ clfs = [
     RandomForestClassifier(n_estimators=100, max_depth=6, oob_score=True),
     GradientBoostingClassifier(learning_rate=0.3, max_depth=6, n_estimators=100)
 ]
-
-kf = KFold(n_splits=5, shuffle=True, random_state=1)
-
-# 创建零矩阵
-dataset_stacking_train = np.zeros((X_train.shape[0], len(clfs)))
-# dataset_stacking_label  = np.zeros((trainLabel.shape[0], len(clfs)))
+X_d1, X_d2, y_d1, y_d2 = train_test_split(X_train, y_train, test_size=0.5, random_state=2020)
+dataset_d1 = np.zeros((X_d2.shape[0], len(clfs)))
+dataset_test = np.zeros((X_d2.shape[0], len(clfs)))
+dataset_d2 = np.zeros((y_train.shape[0], len(clfs)))
 
 for j, clf in enumerate(clfs):
-    '''依次训练各个单模型'''
-    for i, (train, test) in enumerate(kf.split(y_train)):
-        '''使用第i个部分作为预测，剩余的部分来训练模型，获得其预测的输出作为第i部分的新特征。'''
-        # print("Fold", i)
-        X_train, y_train, X_test, y_test = X_train[train], y_train[train], X_train[test], y_train[test]
-        clf.fit(X_train, y_train)
-        y_submission = clf.predict_proba(X_test)[:, 1]
+    clf.fit(X_d1, y_d1)
+    dataset_d1[:, j] = clf.predict_proba(X_d2)[:, 1]
 
-        # j 表示每一次的算法，而 test是交叉验证得到的每一行（也就是每一个算法把测试机和都预测了一遍）
-        dataset_stacking_train[test, j] = y_submission
+    dataset_test[:, j] = dataset_d1.mean(1)
 
-# 用建立第二层模型
 model = LogisticRegression(C=0.1, max_iter=100)
-model.fit(dataset_stacking_train, y_train)
+model.fit(dataset_d1, y_d2)
 
-scores = cross_val_score(model, dataset_stacking_train, y_train, cv=5, scoring='roc_auc')
-print('Stacking :',scores.mean(), "--", scores)
+y_submission = model.predict_proba(dataset_test)[:, 1]
+pred = model.predict(X_test)
+print(pred)
+
+scores = cross_val_score(model, dataset_d1, y_d2, cv=5, scoring='roc_auc')
+print('Blending :', scores.mean(), "\n", scores)
