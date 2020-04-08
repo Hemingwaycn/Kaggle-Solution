@@ -183,34 +183,34 @@ print('Voting :', scores.mean(), "--", scores)
 # print('Stacking :',scores.mean(), "--", scores)
 
 
-# 5. Blending
-# 0.8838950287185581 [0.87584416 0.91064935 0.89714286 0.85294118 0.8828976 ]
-clfs = [
-    AdaBoostClassifier(),
-    SVC(probability=True),
-    AdaBoostClassifier(),
-    LogisticRegression(C=0.1, max_iter=100),
-    XGBClassifier(max_depth=6, n_estimators=100, num_round=5),
-    RandomForestClassifier(n_estimators=100, max_depth=6, oob_score=True),
-    GradientBoostingClassifier(learning_rate=0.3, max_depth=6, n_estimators=100)
-]
-X_d1, X_d2, y_d1, y_d2 = train_test_split(X_train, y_train, test_size=0.5, random_state=2020)
-dataset_d1 = np.zeros((X_d2.shape[0], len(clfs)))
-dataset_test = np.zeros((X_d2.shape[0], len(clfs)))
-dataset_d2 = np.zeros((y_train.shape[0], len(clfs)))
-
-for j, clf in enumerate(clfs):
-    clf.fit(X_d1, y_d1)
-    dataset_d1[:, j] = clf.predict_proba(X_d2)[:, 1]
-
-    dataset_test[:, j] = dataset_d1.mean(1)
-
-model = LogisticRegression(C=0.1, max_iter=100)
-model.fit(dataset_d1, y_d2)
-
-y_submission = model.predict_proba(dataset_test)[:, 1]
-pred = model.predict(X_test)
-print(pred)
-
-scores = cross_val_score(model, dataset_d1, y_d2, cv=5, scoring='roc_auc')
-print('Blending :', scores.mean(), "\n", scores)
+# # 5. Blending
+# # 0.8838950287185581 [0.87584416 0.91064935 0.89714286 0.85294118 0.8828976 ]
+# clfs = [
+#     AdaBoostClassifier(),
+#     SVC(probability=True),
+#     AdaBoostClassifier(),
+#     LogisticRegression(C=0.1, max_iter=100),
+#     XGBClassifier(max_depth=6, n_estimators=100, num_round=5),
+#     RandomForestClassifier(n_estimators=100, max_depth=6, oob_score=True),
+#     GradientBoostingClassifier(learning_rate=0.3, max_depth=6, n_estimators=100)
+# ]
+# X_d1, X_d2, y_d1, y_d2 = train_test_split(X_train, y_train, test_size=0.5, random_state=2020)
+# dataset_d1 = np.zeros((X_d2.shape[0], len(clfs)))
+# dataset_test = np.zeros((X_d2.shape[0], len(clfs)))
+# dataset_d2 = np.zeros((y_train.shape[0], len(clfs)))
+#
+# for j, clf in enumerate(clfs):
+#     clf.fit(X_d1, y_d1)
+#     dataset_d1[:, j] = clf.predict_proba(X_d2)[:, 1]
+#
+#     dataset_test[:, j] = dataset_d1.mean(1)
+#
+# model = LogisticRegression(C=0.1, max_iter=100)
+# model.fit(dataset_d1, y_d2)
+#
+# y_submission = model.predict_proba(dataset_test)[:, 1]
+# pred = model.predict(X_test)
+# print(pred)
+#
+# scores = cross_val_score(model, dataset_d1, y_d2, cv=5, scoring='roc_auc')
+# print('Blending :', scores.mean(), "\n", scores)
